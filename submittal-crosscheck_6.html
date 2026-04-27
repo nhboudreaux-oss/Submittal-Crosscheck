@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Submittal Cross-Check</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --bg: #ffffff;
+    --bg2: #f5f5f3;
+    --bg3: #eeede9;
+    --border: rgba(0,0,0,0.12);
+    --border2: rgba(0,0,0,0.22);
+    --text: #1a1a18;
+    --text2: #5a5a56;
+    --text3: #999993;
+    --red-bg: #FCEBEB; --red-txt: #791F1F; --red-border: #F09595;
+    --amber-bg: #FAEEDA; --amber-txt: #633806; --amber-border: #FAC775;
+    --green-bg: #EAF3DE; --green-txt: #27500A; --green-border: #C0DD97;
+    --blue-bg: #E6F1FB; --blue-txt: #0C447C; --blue-border: #85B7EB;
+    --success-bg: #EAF3DE; --success-border: #97C459;
+    --info-bg: #E6F1FB; --info-border: #85B7EB;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg2);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .topbar-sub {
+    font-size: 12px;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+  .spacer { flex: 1; }
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    border: 0.5px solid var(--border2);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .12s;
+  }
+  .btn:hover { background: var(--bg2); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn.accent { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn.accent:hover { background: #333; }
+  .btn.accent:disabled { background: var(--text3); border-color: var(--text3); }
+
+  /* ── Main layout ── */
+  .main { display: flex; flex-direction: column; gap: 0; }
+
+  /* ── Meta section ── */
+  .meta-section {
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 14px 24px;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .mf { display: flex; flex-direction: column; gap: 4px; }
+  .ml {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  .mf input {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 7px 9px;
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg2);
+    color: var(--text);
+    width: 100%;
+    transition: border-color .12s, background .12s;
+  }
+  .mf input:focus { outline: none; border-color: var(--border2); background: var(--bg); }
+  .mf input::placeholder { color: var(--text3); }
+
+  .upload-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .zone {
+    border: 0.5px dashed var(--border2);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--bg2);
+    cursor: pointer;
+    min-height: 72px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-align: center;
+    transition: border-color .12s, background .12s;
+  }
+  .zone:hover { border-color: var(--text3); background: var(--bg); }
+  .zone.loaded { border-style: solid; border-color: #97C459; background: var(--success-bg); }
+  .zone.extracting { border-style: solid; border-color: #85B7EB; background: var(--info-bg); }
+  .zlbl { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .07em; text-transform: uppercase; color: var(--text2); }
+  .zhint { font-size: 11px; color: var(--text3); }
+  .zstat { font-size: 10px; font-family: var(--mono); word-break: break-all; }
+  .zstat.ok { color: #3B6D11; }
+  .zstat.info { color: #0C447C; }
+  input[type=file] { display: none; }
+
+  .focus-row { display: flex; gap: 10px; align-items: center; }
+  .focus-row select {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 10px;
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg2);
+    color: var(--text);
+  }
+  .focus-row select:focus { outline: none; border-color: var(--border2); }
+
+  /* ── Split panels ── */
+  .panels {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 0;
+    height: calc(100vh - 52px - 230px);
+    min-height: 500px;
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 0.5px solid var(--border);
+  }
+  .panel:last-child { border-right: none; }
+  .phdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .ptitle {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text2);
+    flex: 1;
+  }
+  .pmeta { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .pbody {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: var(--bg2);
+  }
+  .panel:last-child .pbody { background: var(--bg); }
+
+  /* ── PDF pages ── */
+  .pdf-pages { display: flex; flex-direction: column; gap: 16px; }
+  .pw { position: relative; display: block; width: 100%; }
+  .pw canvas { display: block; width: 100%; height: auto; border: 0.5px solid var(--border); border-radius: 4px; background: #fff; }
+  .pw .hl { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 4px; }
+  .plbl { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-bottom: 5px; }
+
+  /* ── Empty states ── */
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 200px;
+    gap: 8px;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.8;
+  }
+  .empty-icon { font-size: 28px; margin-bottom: 4px; }
+
+  /* ── Findings ── */
+  .stats { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .st {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 0.5px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+  }
+  .st.r { background: var(--red-bg); color: var(--red-txt); border-color: var(--red-border); }
+  .st.a { background: var(--amber-bg); color: var(--amber-txt); border-color: var(--amber-border); }
+  .st.g { background: var(--green-bg); color: var(--green-txt); border-color: var(--green-border); }
+
+  .fc {
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color .12s, box-shadow .12s;
+    background: var(--bg);
+  }
+  .fc:hover { border-color: var(--border2); }
+  .fc.active { border-left: 2px solid #E24B4A; }
+  .fch { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; background: var(--bg2); }
+  .fnum {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .nc { background: var(--red-bg); color: var(--red-txt); }
+  .nm { background: var(--amber-bg); color: var(--amber-txt); }
+  .no { background: var(--green-bg); color: var(--green-txt); }
+  .ni { background: var(--blue-bg); color: var(--blue-txt); }
+  .bdg {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .bc { background: var(--red-bg); color: var(--red-txt); }
+  .bm { background: var(--amber-bg); color: var(--amber-txt); }
+  .bo { background: var(--green-bg); color: var(--green-txt); }
+  .bi { background: var(--blue-bg); color: var(--blue-txt); }
+  .ftitle { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; line-height: 1.4; }
+  .fcb {
+    padding: 9px 12px;
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.65;
+    border-top: 0.5px solid var(--border);
+    background: var(--bg);
+    font-family: var(--mono);
+  }
+  .fpg {
+    font-size: 10px;
+    color: #185FA5;
+    margin-top: 5px;
+    cursor: pointer;
+    display: inline-block;
+  }
+  .fpg:hover { text-decoration: underline; }
+
+  .thinking {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    padding: 12px;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg2);
+    line-height: 1.6;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .leg-item { display: flex; align-items: center; gap: 5px; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── Scrollbars ── */
+  .pbody::-webkit-scrollbar { width: 6px; }
+  .pbody::-webkit-scrollbar-track { background: transparent; }
+  .pbody::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Setup modal -->
+<div id="setup-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:32px;max-width:480px;width:90%;font-family:'IBM Plex Sans',sans-serif">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;color:#1a1a18">API Key Required</div>
+    <p style="font-size:13px;color:#5a5a56;line-height:1.6;margin-bottom:20px">This tool uses the Anthropic Claude API to analyze submittals. Your key is stored only in your browser — never sent anywhere except directly to Anthropic.</p>
+    <div style="margin-bottom:6px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:#999">Anthropic API Key</div>
+    <input type="password" id="modal-key-input" placeholder="sk-ant-api03-..." onkeydown="if(event.key==='Enter')hideSetupModal()" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:9px 11px;border:0.5px solid rgba(0,0,0,0.2);border-radius:6px;margin-bottom:8px;color:#1a1a18;background:#f5f5f3">
+    <div id="modal-error" style="font-size:11px;color:#A32D2D;font-family:'IBM Plex Mono',monospace;min-height:16px;margin-bottom:12px"></div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button onclick="hideSetupModal()" style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:8px 16px;border:none;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Save &amp; continue</button>
+      <a href="https://console.anthropic.com/account/keys" target="_blank" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#185FA5;text-decoration:none">Get a key →</a>
+    </div>
+  </div>
+</div>
+
+<div class="topbar">
+  <span class="topbar-title">Submittal Cross-Check</span>
+  <span class="topbar-sub">— Linbeck</span>
+  <div class="spacer"></div>
+  <div class="legend">
+    <span class="leg-item"><span class="leg-dot" style="background:#E24B4A"></span>Conflict</span>
+    <span class="leg-item"><span class="leg-dot" style="background:#EF9F27"></span>Missing</span>
+    <span class="leg-item"><span class="leg-dot" style="background:#639922"></span>Conforms</span>
+  </div>
+  <button class="btn" id="export-btn" disabled onclick="exportSummary()">Export summary .txt</button>
+  <button class="btn" id="export-pdf-btn" disabled onclick="exportPDF()">Export summary .pdf</button>
+</div>
+
+<div class="main">
+  <div class="meta-section">
+    <div class="meta-grid">
+      <div class="mf"><span class="ml">Project name</span><input id="m-proj" placeholder="e.g. Cook Children's EDBH Renovation"></div>
+      <div class="mf"><span class="ml">Spec section</span><input id="m-spec" placeholder="e.g. 08 71 00 — Door Hardware"></div>
+      <div class="mf"><span class="ml">Submittal ID</span><input id="m-sub" placeholder="e.g. SUB-0042"></div>
+      <div class="mf"><span class="ml">Reviewer</span><input id="m-rev" placeholder="e.g. N. Blevins — Linbeck"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:10px 12px;background:var(--bg3);border-radius:6px;border:0.5px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);white-space:nowrap">Anthropic API Key</span>
+      <input type="password" id="api-key" placeholder="sk-ant-api03-..." oninput="saveKey()" style="flex:1;font-family:var(--mono);font-size:11px;padding:6px 9px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+      <span id="key-status" style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap"></span>
+      <a href="https://console.anthropic.com/account/keys" target="_blank" style="font-family:var(--mono);font-size:10px;color:#185FA5;white-space:nowrap;text-decoration:none">Get key →</a>
+      <span onclick="clearKey()" style="font-family:var(--mono);font-size:10px;color:var(--text3);cursor:pointer;white-space:nowrap" title="Change API key">Reset key</span>
+    </div>
+
+    <div class="upload-row">
+      <div class="zone" id="z-sub" onclick="document.getElementById('f-sub').click()">
+        <input type="file" id="f-sub" accept=".pdf,.txt" onchange="handleUpload(this,'sub')">
+        <div class="zlbl">Submittal PDF</div>
+        <div id="h-sub" class="zhint">Click to upload — text extracted automatically</div>
+      </div>
+      <div class="zone" id="z-spec" onclick="document.getElementById('f-spec').click()">
+        <input type="file" id="f-spec" accept=".pdf,.txt" onchange="handleUpload(this,'spec')">
+        <div class="zlbl">Spec section</div>
+        <div id="h-spec" class="zhint">PDF or TXT</div>
+      </div>
+      <div class="zone" id="z-dwg" onclick="document.getElementById('f-dwg').click()">
+        <input type="file" id="f-dwg" accept=".pdf,.txt" onchange="handleUpload(this,'dwg')">
+        <div class="zlbl">Drawing / notes</div>
+        <div id="h-dwg" class="zhint">PDF or TXT (optional)</div>
+      </div>
+    </div>
+
+    <div class="focus-row">
+      <select id="focus">
+        <option value="all">All issues — conflicts, missing data, and non-conformances</option>
+        <option value="conflicts">Conflicts only — submitted product vs. spec requirements</option>
+        <option value="missing">Missing information — required items not addressed</option>
+        <option value="model">Model numbers and product data verification</option>
+        <option value="fire">Life safety / fire-rated assembly requirements</option>
+        <option value="hvac">HVAC / mechanical — CFM, pressures, temperatures, schedules</option>
+        <option value="electrical">Electrical — voltage, amperage, circuit requirements</option>
+      </select>
+      <button class="btn accent" id="run-btn" onclick="runCheck()">Analyze ↗</button>
+    </div>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="phdr">
+        <span class="ptitle">Submittal — annotated</span>
+        <span class="pmeta" id="pgc"></span>
+      </div>
+      <div class="pbody" id="pdf-panel">
+        <div class="empty">
+          <div class="empty-icon">📋</div>
+          Upload a submittal PDF to view it here.<br>
+          Problem areas will be highlighted after analysis.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="phdr">
+        <span class="ptitle">Findings summary</span>
+        <span class="pmeta" id="fcount"></span>
+      </div>
+      <div class="pbody" id="sum-panel">
+        <div class="empty">
+          <div class="empty-icon">📊</div>
+          Upload documents and click Analyze.<br>
+          Findings will appear here.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const S = { sub: null, spec: null, dwg: null, subPages: [], findings: [], pdfDoc: null };
+
+function saveKey() {
+  const key = document.getElementById('api-key').value.trim();
+  if (key) {
+    localStorage.setItem('anthropic_key', key);
+    document.getElementById('key-status').textContent = 'Saved ✓';
+    document.getElementById('key-status').style.color = '#3B6D11';
+    document.getElementById('setup-modal').style.display = 'none';
+  }
+}
+function getKey() { return document.getElementById('api-key').value.trim() || localStorage.getItem('anthropic_key') || ''; }
+function clearKey() {
+  localStorage.removeItem('anthropic_key');
+  document.getElementById('api-key').value = '';
+  document.getElementById('key-status').textContent = '';
+  showSetupModal();
+}
+function showSetupModal() { document.getElementById('setup-modal').style.display = 'flex'; }
+function hideSetupModal() {
+  const key = document.getElementById('modal-key-input').value.trim();
+  if (!key) { document.getElementById('modal-error').textContent = 'Please enter your API key to continue.'; return; }
+  localStorage.setItem('anthropic_key', key);
+  document.getElementById('api-key').value = key;
+  document.getElementById('key-status').textContent = 'Ready ✓';
+  document.getElementById('key-status').style.color = '#3B6D11';
+  document.getElementById('setup-modal').style.display = 'none';
+}
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('anthropic_key');
+  if (saved) {
+    document.getElementById('api-key').value = saved;
+    document.getElementById('key-status').textContent = 'Ready ✓';
+    document.getElementById('key-status').style.color = '#3B6D11';
+  } else {
+    showSetupModal();
+  }
+});
+
+async function extractPdfText(buf) {
+
+async function extractPdfText(buf) {
+  try {
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const pg = await pdf.getPage(i);
+      const c = await pg.getTextContent();
+      const items = c.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5], w: it.width, h: it.height }));
+      pages.push({ pageNum: i, items, text: items.map(it => it.str).join(' ') });
+    }
+    return { pages, fullText: pages.map(p => `[Page ${p.pageNum}]\n${p.text}`).join('\n\n') };
+  } catch (e) { return null; }
+}
+
+async function renderPdf(buf) {
+  try {
+    S.pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const panel = document.getElementById('pdf-panel');
+    panel.innerHTML = '<div class="pdf-pages" id="pdf-pages"></div>';
+    document.getElementById('pgc').textContent = S.pdfDoc.numPages + ' page' + (S.pdfDoc.numPages !== 1 ? 's' : '');
+    const wrap = document.getElementById('pdf-pages');
+    for (let i = 1; i <= S.pdfDoc.numPages; i++) {
+      const pg = await S.pdfDoc.getPage(i);
+      const vp = pg.getViewport({ scale: 1.8 });
+      const w = document.createElement('div'); w.className = 'pw'; w.id = 'pw-' + i;
+      const lbl = document.createElement('div'); lbl.className = 'plbl'; lbl.textContent = 'Page ' + i;
+      const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height; cv.id = 'cv-' + i;
+      const hl = document.createElement('canvas'); hl.className = 'hl'; hl.width = vp.width; hl.height = vp.height; hl.id = 'hl-' + i;
+      w.appendChild(lbl); w.appendChild(cv); w.appendChild(hl);
+      wrap.appendChild(w);
+      await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    }
+  } catch (e) { console.error(e); }
+}
+
+async function handleUpload(input, key) {
+  const file = input.files[0]; if (!file) return;
+  const zone = document.getElementById('z-' + key);
+  const hint = document.getElementById('h-' + key);
+  zone.className = 'zone extracting';
+  hint.innerHTML = '<span class="zstat info">Extracting text...</span>';
+  if (file.name.toLowerCase().endsWith('.pdf')) {
+    try {
+      const buf1 = await file.arrayBuffer();
+      const buf2 = buf1.slice(0);
+      const r = await extractPdfText(buf1);
+      if (r && r.fullText.length > 30) {
+        S[key] = r.fullText;
+        if (key === 'sub') { S.subPages = r.pages; await renderPdf(buf2); }
+        zone.className = 'zone loaded';
+        hint.innerHTML = `<span class="zstat ok">${file.name}</span><span class="zstat ok">${r.pages.length} page${r.pages.length !== 1 ? 's' : ''} · ${Math.round(r.fullText.length / 1000)}k chars extracted</span>`;
+      } else {
+        S[key] = `[Scanned/image PDF: ${file.name} — no text layer found. Paste key spec text below for best results.]`;
+        if (key === 'sub') await renderPdf(buf2);
+        zone.className = 'zone loaded';
+        hint.innerHTML = `<span class="zstat ok">${file.name}</span><span class="zstat info">Scanned PDF — limited text extraction</span>`;
+      }
+    } catch(e) {
+      zone.className = 'zone';
+      hint.innerHTML = `<span class="zstat info">Error reading PDF: ${e.message}</span>`;
+      console.error('PDF upload error:', e);
+    }
+  } else {
+    try {
+      const t = await file.text(); S[key] = t;
+      zone.className = 'zone loaded';
+      hint.innerHTML = `<span class="zstat ok">${file.name}</span><span class="zstat ok">${Math.round(t.length / 1000)}k chars</span>`;
+    } catch(e) {
+      zone.className = 'zone';
+      hint.innerHTML = `<span class="zstat info">Error reading file: ${e.message}</span>`;
+    }
+  }
+}
+
+async function runCheck() {
+  if (!S.sub && !S.spec && !S.dwg) {
+    document.getElementById('sum-panel').innerHTML = '<div class="thinking">Upload at least one file first.</div>'; return;
+  }
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.textContent = 'Analyzing...';
+  document.getElementById('sum-panel').innerHTML = '<div class="thinking">Analyzing documents — finding conflicts, missing data, and non-conformances...<br><br>This may take 15–30 seconds for large PDFs.</div>';
+  document.getElementById('export-btn').disabled = true;
+  document.getElementById('export-pdf-btn').disabled = true;
+  document.getElementById('fcount').textContent = '';
+
+  const focus = document.getElementById('focus').value;
+  const fmap = {
+    all: 'All issues — conflicts, missing required data, non-conformances, items needing attention',
+    conflicts: 'Direct conflicts where submitted product or values contradict spec or drawing requirements',
+    missing: 'Missing required information not addressed in the submittal',
+    model: 'Model numbers, catalog numbers, and product data verification',
+    fire: 'Life safety and fire-rated assembly requirements',
+    hvac: 'HVAC and mechanical data — CFM, static pressures, temperatures, equipment schedules',
+    electrical: 'Electrical — voltage, amperage, circuit requirements, equipment schedules'
+  };
+
+  let prompt = `You are a senior construction QA/QC engineer at a general contractor, reviewing a submittal against project specifications and drawings. Your job is to identify issues that would require rejection or resubmittal.\n\nFOCUS: ${fmap[focus]}\n\n`;
+  if (S.sub) prompt += `SUBMITTAL TEXT (extracted from PDF):\n${S.sub.substring(0, 9000)}\n\n`;
+  if (S.spec) prompt += `SPECIFICATION SECTION:\n${S.spec.substring(0, 5500)}\n\n`;
+  if (S.dwg) prompt += `DRAWING / SCHEDULE NOTES:\n${S.dwg.substring(0, 3500)}\n\n`;
+
+  prompt += `Return ONLY valid JSON with no markdown fences, no preamble, no explanation:
+{
+  "summary": { "conflicts": 0, "missing": 0, "ok": 0, "info": 0 },
+  "findings": [
+    {
+      "id": 1,
+      "severity": "conflict",
+      "title": "Concise title under 8 words",
+      "detail": "Specific detail: what the submittal states vs. what the spec/drawing requires. Reference actual values, model numbers, spec paragraph numbers where found.",
+      "page": 1,
+      "highlight_phrase": "exact verbatim phrase from submittal text, 5 to 12 words long"
+    }
+  ]
+}
+
+Severity definitions:
+- conflict: submittal directly contradicts a spec or drawing requirement
+- missing: required information is absent from the submittal
+- ok: item reviewed and conforms to requirements
+- info: noteworthy clarification that warrants attention but is not a clear deficiency
+
+For every finding, provide:
+- page: the page number (1-based) in the submittal where the issue appears
+- highlight_phrase: an EXACT verbatim substring from the submittal text (5–12 words) that identifies the problem location
+
+Be specific. Cite actual values and spec paragraph references wherever the extracted text supports it.`;
+
+  try {
+    const apiKey = getKey();
+    if (!apiKey) {
+      document.getElementById('sum-panel').innerHTML = '<div class="thinking">No API key found. Paste your Anthropic API key in the field above — get one at console.anthropic.com/account/keys.</div>';
+      btn.disabled = false; btn.textContent = 'Analyze ↗';
+      return;
+    }
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error.message);
+    const raw = d.content.map(b => b.text || '').join('').trim().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(raw);
+    S.findings = parsed.findings || [];
+    renderSummary(parsed);
+    applyHighlights();
+    document.getElementById('export-btn').disabled = false;
+    document.getElementById('export-pdf-btn').disabled = false;
+  } catch (e) {
+    document.getElementById('sum-panel').innerHTML = `<div class="thinking">Analysis failed: ${e.message}<br><br>Check that your API key is correct and that you have an active Anthropic account with credits. Open DevTools (F12) → Console for details.</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Analyze ↗';
+  }
+}
+
+function applyHighlights() {
+  if (!S.subPages.length || !S.findings.length || !S.pdfDoc) return;
+  S.findings.forEach(f => {
+    if (!f.highlight_phrase) return;
+    const words = f.highlight_phrase.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
+    const pn = Math.max(1, f.page || 1);
+    const pd = S.subPages.find(p => p.pageNum === pn) || S.subPages[0];
+    if (!pd) return;
+
+    let best = null, bestScore = 0;
+    pd.items.forEach(it => {
+      const t = it.str.toLowerCase();
+      let score = 0; words.forEach(w => { if (t.includes(w)) score++; });
+      if (score > bestScore) { bestScore = score; best = it; }
+    });
+    if (!best || bestScore === 0) return;
+
+    S.pdfDoc.getPage(pd.pageNum).then(pg => {
+      const vp = pg.getViewport({ scale: 1.8 });
+      const hl = document.getElementById('hl-' + pd.pageNum);
+      if (!hl) return;
+      const ctx = hl.getContext('2d');
+      const sx = vp.scale;
+      const rx = best.x * sx;
+      const ry = vp.height - best.y * sx - (best.h || 12) * sx;
+      const rw = Math.max((best.w || 120) * sx, 100);
+      const rh = Math.max((best.h || 12) * sx + 6, 18);
+
+      const fills = { conflict: 'rgba(226,75,74,0.22)', missing: 'rgba(239,159,39,0.22)', ok: 'rgba(99,153,34,0.18)', info: 'rgba(55,138,221,0.18)' };
+      const strokes = { conflict: 'rgba(163,45,45,0.85)', missing: 'rgba(133,79,11,0.85)', ok: 'rgba(59,109,17,0.75)', info: 'rgba(24,95,165,0.75)' };
+      const fill = fills[f.severity] || fills.info;
+      const stroke = strokes[f.severity] || strokes.info;
+
+      ctx.fillStyle = fill; ctx.fillRect(rx, ry - 2, rw, rh);
+      ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.strokeRect(rx, ry - 2, rw, rh);
+
+      // Number badge
+      ctx.fillStyle = stroke;
+      ctx.beginPath(); ctx.arc(rx - 10, ry + rh / 2 - 2, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = '600 9px IBM Plex Mono, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(f.id), rx - 10, ry + rh / 2 - 2);
+      ctx.textAlign = 'left';
+    });
+  });
+}
+
+function scrollToPage(n) {
+  const w = document.getElementById('pw-' + n);
+  if (w) w.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function activateFinding(id, page) {
+  document.querySelectorAll('.fc').forEach(c => c.classList.remove('active'));
+  const c = document.getElementById('fc-' + id); if (c) c.classList.add('active');
+  if (page) scrollToPage(page);
+}
+
+function renderSummary(data) {
+  const s = data.summary || {}, findings = data.findings || [];
+  document.getElementById('fcount').textContent = findings.length + ' finding' + (findings.length !== 1 ? 's' : '');
+  const sh = [
+    s.conflicts > 0 ? `<span class="st r">${s.conflicts} conflict${s.conflicts !== 1 ? 's' : ''}</span>` : '',
+    s.missing > 0 ? `<span class="st a">${s.missing} missing</span>` : '',
+    s.ok > 0 ? `<span class="st g">${s.ok} conforms</span>` : '',
+    s.info > 0 ? `<span class="st">${s.info} note${s.info !== 1 ? 's' : ''}</span>` : ''
+  ].join('');
+
+  if (!findings.length) {
+    document.getElementById('sum-panel').innerHTML = `<div class="stats">${sh}</div><div class="empty"><div class="empty-icon">✅</div>No issues found.<br>Submittal appears to conform.</div>`;
+    return;
+  }
+
+  const html = findings.map(f => {
+    const nc = f.severity === 'conflict' ? 'nc' : f.severity === 'missing' ? 'nm' : f.severity === 'ok' ? 'no' : 'ni';
+    const bc = f.severity === 'conflict' ? 'bc' : f.severity === 'missing' ? 'bm' : f.severity === 'ok' ? 'bo' : 'bi';
+    const bl = f.severity === 'conflict' ? 'Conflict' : f.severity === 'missing' ? 'Missing' : f.severity === 'ok' ? 'Conforms' : 'Note';
+    const pg = f.page ? `<span class="fpg" onclick="event.stopPropagation();scrollToPage(${f.page})">Jump to page ${f.page} in submittal →</span>` : '';
+    return `<div class="fc" id="fc-${f.id}" onclick="activateFinding(${f.id},${f.page || 1})">
+      <div class="fch">
+        <span class="fnum ${nc}">${f.id}</span>
+        <span class="bdg ${bc}">${bl}</span>
+        <span class="ftitle">${f.title}</span>
+      </div>
+      <div class="fcb">${f.detail}${pg ? '<br>' + pg : ''}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('sum-panel').innerHTML = `<div class="stats">${sh}</div>${html}`;
+}
+
+function getMeta() {
+  return {
+    project: document.getElementById('m-proj').value.trim() || '—',
+    spec: document.getElementById('m-spec').value.trim() || '—',
+    submittal: document.getElementById('m-sub').value.trim() || '—',
+    reviewer: document.getElementById('m-rev').value.trim() || '—'
+  };
+}
+
+function exportSummary() {
+  if (!S.findings.length) return;
+  const m = getMeta();
+  const now = new Date();
+  const ds = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const s = { conflicts: 0, missing: 0, ok: 0, info: 0 };
+  S.findings.forEach(f => { if (s[f.severity] !== undefined) s[f.severity]++; });
+  const W = 56;
+  const lines = [
+    'SUBMITTAL REVIEW — CROSS-CHECK SUMMARY',
+    '='.repeat(W), '',
+    `Project:       ${m.project}`,
+    `Spec section:  ${m.spec}`,
+    `Submittal ID:  ${m.submittal}`,
+    `Reviewer:      ${m.reviewer}`,
+    `Review date:   ${ds}`, '',
+    '-'.repeat(W), 'OVERVIEW', '-'.repeat(W),
+    `  Conflicts:   ${s.conflicts}`,
+    `  Missing:     ${s.missing}`,
+    `  Conforms:    ${s.ok}`,
+    `  Notes:       ${s.info}`,
+    `  Total:       ${S.findings.length}`, '',
+    '-'.repeat(W), 'FINDINGS', '-'.repeat(W), ''
+  ];
+  S.findings.forEach(f => {
+    lines.push(`[${f.id}] ${f.severity.toUpperCase()} — ${f.title}`);
+    if (f.page) lines.push(`     Submittal page: ${f.page}`);
+    lines.push(`     ${f.detail}`, '');
+  });
+  lines.push('-'.repeat(W), `Generated: ${ds} — Submittal Cross-Check / Linbeck`);
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const fn = `${m.submittal !== '—' ? m.submittal + '-' : ''}crosscheck-${now.toISOString().slice(0, 10)}.txt`;
+  a.download = fn;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function exportPDF() {
+  if (!S.findings.length) return;
+  const m = getMeta();
+  const now = new Date();
+  const ds = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const s = { conflicts: 0, missing: 0, ok: 0, info: 0 };
+  S.findings.forEach(f => { if (s[f.severity] !== undefined) s[f.severity]++; });
+
+  const sevColors = { conflict: '#A32D2D', missing: '#633806', ok: '#27500A', info: '#0C447C' };
+  const sevBg = { conflict: '#FCEBEB', missing: '#FAEEDA', ok: '#EAF3DE', info: '#E6F1FB' };
+
+  const findingsHtml = S.findings.map(f => `
+    <div style="border:1px solid #ddd;border-radius:6px;margin-bottom:10px;overflow:hidden;page-break-inside:avoid">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f5f5f3">
+        <span style="font-family:monospace;font-size:10px;font-weight:600;width:20px;height:20px;border-radius:50%;background:${sevBg[f.severity]};color:${sevColors[f.severity]};display:inline-flex;align-items:center;justify-content:center">${f.id}</span>
+        <span style="font-family:monospace;font-size:9px;font-weight:600;text-transform:uppercase;background:${sevBg[f.severity]};color:${sevColors[f.severity]};padding:2px 7px;border-radius:3px">${f.severity === 'conflict' ? 'Conflict' : f.severity === 'missing' ? 'Missing' : f.severity === 'ok' ? 'Conforms' : 'Note'}</span>
+        <span style="font-size:12px;font-weight:500">${f.title}</span>
+        ${f.page ? `<span style="margin-left:auto;font-family:monospace;font-size:10px;color:#888">p.${f.page}</span>` : ''}
+      </div>
+      <div style="padding:8px 12px;font-family:monospace;font-size:11px;color:#444;line-height:1.6;background:#fff">${f.detail}</div>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>body{font-family:'IBM Plex Sans',sans-serif;margin:0;padding:32px;color:#1a1a18;font-size:13px}
+  @media print{body{padding:20px}}</style></head><body>
+  <div style="border-bottom:2px solid #1a1a18;padding-bottom:12px;margin-bottom:20px">
+    <div style="font-family:monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Submittal Review — Cross-Check Summary</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:12px;color:#555">
+      <span><b>Project:</b> ${m.project}</span>
+      <span><b>Spec section:</b> ${m.spec}</span>
+      <span><b>Submittal ID:</b> ${m.submittal}</span>
+      <span><b>Reviewer:</b> ${m.reviewer}</span>
+      <span><b>Review date:</b> ${ds}</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:16px;margin-bottom:20px">
+    ${s.conflicts > 0 ? `<span style="background:#FCEBEB;color:#791F1F;padding:4px 12px;border-radius:20px;font-family:monospace;font-size:11px">${s.conflicts} conflict${s.conflicts !== 1 ? 's' : ''}</span>` : ''}
+    ${s.missing > 0 ? `<span style="background:#FAEEDA;color:#633806;padding:4px 12px;border-radius:20px;font-family:monospace;font-size:11px">${s.missing} missing</span>` : ''}
+    ${s.ok > 0 ? `<span style="background:#EAF3DE;color:#27500A;padding:4px 12px;border-radius:20px;font-family:monospace;font-size:11px">${s.ok} conforms</span>` : ''}
+    ${s.info > 0 ? `<span style="background:#eee;color:#555;padding:4px 12px;border-radius:20px;font-family:monospace;font-size:11px">${s.info} note${s.info !== 1 ? 's' : ''}</span>` : ''}
+  </div>
+  <div style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#888;margin-bottom:10px">Findings</div>
+  ${findingsHtml}
+  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-family:monospace;font-size:10px;color:#aaa">
+    Generated ${ds} — Submittal Cross-Check / Linbeck
+  </div>
+  </body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const fn = `${m.submittal !== '—' ? m.submittal + '-' : ''}crosscheck-${now.toISOString().slice(0, 10)}.html`;
+  a.download = fn;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+</script>
+</body>
+</html>
